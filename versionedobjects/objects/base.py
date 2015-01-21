@@ -12,28 +12,28 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Nova common internal object model"""
+"""VersionedObjects common internal object model"""
 
 import collections
 import contextlib
 import copy
 import datetime
 import functools
+import logging
 import traceback
 
 import netaddr
+from oslo.i18n import _, _LE
 from oslo import messaging
 from oslo.utils import timeutils
 import six
 
-from nova import context
-from nova import exception
-from nova.i18n import _, _LE
-from nova import objects
-from nova.objects import fields
-from nova.openstack.common import log as logging
-from nova.openstack.common import versionutils
-from nova import utils
+from versionedobjects import exception
+from versionedobjects import objects
+from versionedobjects.objects import fields
+from versionedobjects.openstack.common import context
+from versionedobjects.openstack.common import versionutils
+from versionedobjects import utils
 
 
 LOG = logging.getLogger('object')
@@ -94,7 +94,7 @@ def make_class_properties(cls):
         setattr(cls, name, property(getter, setter))
 
 
-class NovaObjectMetaclass(type):
+class VersionedObjectMetaclass(type):
     """Metaclass that allows tracking of object classes."""
 
     # NOTE(danms): This is what controls whether object operations are
@@ -104,14 +104,14 @@ class NovaObjectMetaclass(type):
     def __init__(cls, names, bases, dict_):
         if not hasattr(cls, '_obj_classes'):
             # This means this is a base class using the metaclass. I.e.,
-            # the 'NovaObject' class.
+            # the 'VersionedObject' class.
             cls._obj_classes = collections.defaultdict(list)
             return
 
         def _vers_tuple(obj):
             return tuple([int(x) for x in obj.VERSION.split(".")])
 
-        # Add the subclass to NovaObject._obj_classes. If the
+        # Add the subclass to VersionedObject._obj_classes. If the
         # same version already exists, replace it. Otherwise,
         # keep the list with newest version first.
         make_class_properties(cls)
@@ -149,13 +149,13 @@ def remotable_classmethod(fn):
     """Decorator for remotable classmethods."""
     @functools.wraps(fn)
     def wrapper(cls, context, *args, **kwargs):
-        if NovaObject.indirection_api:
-            result = NovaObject.indirection_api.object_class_action(
+        if VersionedObject.indirection_api:
+            result = VersionedObject.indirection_api.object_class_action(
                 context, cls.obj_name(), fn.__name__, cls.VERSION,
                 args, kwargs)
         else:
             result = fn(cls, context, *args, **kwargs)
-            if isinstance(result, NovaObject):
+            if isinstance(result, VersionedObject):
                 result._context = context
         return result
 
@@ -186,16 +186,16 @@ def remotable(fn):
                                                 objtype=self.obj_name())
         # Force this to be set if it wasn't before.
         self._context = ctxt
-        if NovaObject.indirection_api:
-            updates, result = NovaObject.indirection_api.object_action(
+        if VersionedObject.indirection_api:
+            updates, result = VersionedObject.indirection_api.object_action(
                 ctxt, self, fn.__name__, args, kwargs)
             for key, value in updates.iteritems():
                 if key in self.fields:
                     field = self.fields[key]
-                    # NOTE(ndipanov): Since NovaObjectSerializer will have
+                    # NOTE(ndipanov): Since VersionedObjectSerializer will have
                     # deserialized any object fields into objects already,
                     # we do not try to deserialize them again here.
-                    if isinstance(value, NovaObject):
+                    if isinstance(value, VersionedObject):
                         self[key] = value
                     else:
                         self[key] = field.from_primitive(self, key, value)
@@ -210,8 +210,8 @@ def remotable(fn):
     return wrapper
 
 
-@six.add_metaclass(NovaObjectMetaclass)
-class NovaObject(object):
+@six.add_metaclass(VersionedObjectMetaclass)
+class VersionedObject(object):
     """Base class and object factory.
 
     This forms the base of all objects that can be remoted or instantiated
@@ -390,7 +390,7 @@ class NovaObject(object):
             obj = getattr(self, field)
             if not obj:
                 return
-            if isinstance(obj, NovaObject):
+            if isinstance(obj, VersionedObject):
                 obj.obj_make_compatible(
                     primitive[field]['nova_object.data'],
                     to_version)
@@ -519,7 +519,7 @@ class NovaObject(object):
         changes = set(self._changed_fields)
         for field in self.fields:
             if (self.obj_attr_is_set(field) and
-                    isinstance(getattr(self, field), NovaObject) and
+                    isinstance(getattr(self, field), VersionedObject) and
                     getattr(self, field).obj_what_changed()):
                 changes.add(field)
         return changes
@@ -559,7 +559,7 @@ class NovaObject(object):
         return self.fields.keys() + self.obj_extra_fields
 
 
-class NovaObjectDictCompat(object):
+class VersionedObjectDictCompat(object):
     """Mix-in to provide dictionary key access compat
 
     If an object needs to support attribute access using
@@ -615,7 +615,7 @@ class NovaObjectDictCompat(object):
         """
         if key not in self.obj_fields:
             raise AttributeError("'%s' object has no attribute '%s'" % (
-                    self.__class__, key))
+                self.__class__, key))
         if value != NotSpecifiedSentinel and not self.obj_attr_is_set(key):
             return value
         else:
@@ -630,7 +630,7 @@ class NovaObjectDictCompat(object):
             setattr(self, key, value)
 
 
-class NovaPersistentObject(object):
+class VersionedPersistentObject(object):
     """Mixin class for Persistent objects.
     This adds the fields that we use in common for all persistent objects.
     """
@@ -674,7 +674,7 @@ class ObjectListBase(object):
     serialization of the list of objects automatically.
     """
     fields = {
-        'objects': fields.ListOfObjectsField('NovaObject'),
+        'objects': fields.ListOfObjectsField('VersionedObject'),
         }
 
     # This is a dictionary of my_version:child_version mappings so that
@@ -701,7 +701,7 @@ class ObjectListBase(object):
         if isinstance(index, slice):
             new_obj = self.__class__()
             new_obj.objects = self.objects[index]
-            # NOTE(danms): We must be mixed in with a NovaObject!
+            # NOTE(danms): We must be mixed in with a VersionedObject!
             new_obj.obj_reset_changes()
             new_obj._context = self._context
             return new_obj
@@ -739,13 +739,13 @@ class ObjectListBase(object):
         return changes
 
 
-class NovaObjectSerializer(messaging.NoOpSerializer):
-    """A NovaObject-aware Serializer.
+class VersionedObjectSerializer(messaging.NoOpSerializer):
+    """A VersionedObject-aware Serializer.
 
     This implements the Oslo Serializer interface and provides the
-    ability to serialize and deserialize NovaObject entities. Any service
-    that needs to accept or return NovaObjects as arguments or result values
-    should pass this to its RPCClient and RPCServer objects.
+    ability to serialize and deserialize VersionedObject entities. Any service
+    that needs to accept or return VersionedObjects as arguments or result
+    values should pass this to its RPCClient and RPCServer objects.
     """
 
     @property
@@ -757,7 +757,8 @@ class NovaObjectSerializer(messaging.NoOpSerializer):
 
     def _process_object(self, context, objprim):
         try:
-            objinst = NovaObject.obj_from_primitive(objprim, context=context)
+            objinst = VersionedObject.obj_from_primitive(
+                objprim, context=context)
         except exception.IncompatibleObjectVersion as e:
             objver = objprim['nova_object.version']
             if objver.count('.') == 2:
@@ -811,12 +812,12 @@ class NovaObjectSerializer(messaging.NoOpSerializer):
 def obj_to_primitive(obj):
     """Recursively turn an object into a python primitive.
 
-    A NovaObject becomes a dict, and anything that implements ObjectListBase
-    becomes a list.
+    A VersionedObject becomes a dict, and anything that implements
+    ObjectListBase becomes a list.
     """
     if isinstance(obj, ObjectListBase):
         return [obj_to_primitive(x) for x in obj]
-    elif isinstance(obj, NovaObject):
+    elif isinstance(obj, VersionedObject):
         result = {}
         for key in obj.obj_fields:
             if obj.obj_attr_is_set(key) or key in obj.obj_extra_fields:
@@ -838,7 +839,7 @@ def obj_make_list(context, list_obj, item_cls, db_list, **extra_args):
 
     :param:context: Request context
     :param:list_obj: An ObjectListBase object
-    :param:item_cls: The NovaObject class of the objects within the list
+    :param:item_cls: The VersionedObject class of the objects within the list
     :param:db_list: The list of primitives to convert to objects
     :param:extra_args: Extra arguments to pass to _from_db_object()
     :returns: list_obj

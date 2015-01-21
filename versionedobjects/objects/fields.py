@@ -14,14 +14,11 @@
 
 import abc
 import datetime
+import json
 
-import iso8601
-import netaddr
+from oslo.i18n import _
 from oslo.utils import timeutils
 import six
-
-from nova.i18n import _
-from nova.network import model as network_model
 
 
 class KeyTypeError(TypeError):
@@ -243,19 +240,12 @@ class String(FieldType):
                               datetime.datetime)):
             return unicode(value)
         else:
-            raise ValueError(_('A string is required here, not %s') %
+            raise ValueError('A string is required here, not %s' %
                              value.__class__.__name__)
 
     @staticmethod
     def stringify(value):
         return '\'%s\'' % value
-
-
-class UUID(FieldType):
-    @staticmethod
-    def coerce(obj, attr, value):
-        # FIXME(danms): We should actually verify the UUIDness here
-        return str(value)
 
 
 class Integer(FieldType):
@@ -275,6 +265,21 @@ class Boolean(FieldType):
         return bool(value)
 
 
+class Json(FieldType):
+    @staticmethod
+    def coerce(obj, attr, value):
+        if isinstance(value, six.string_types):
+            return json.loads(value)
+        return value
+
+    def from_primitive(self, obj, attr, value):
+        return self.coerce(obj, attr, value)
+
+    @staticmethod
+    def to_primitive(obj, attr, value):
+        return json.dumps(value)
+
+
 class DateTime(FieldType):
     @staticmethod
     def coerce(obj, attr, value):
@@ -283,13 +288,8 @@ class DateTime(FieldType):
             # during our objects transition
             value = timeutils.parse_isotime(value)
         elif not isinstance(value, datetime.datetime):
-            raise ValueError(_('A datetime.datetime is required here'))
+            raise ValueError('A datetime.datetime is required here')
 
-        if value.utcoffset() is None:
-            # NOTE(danms): Legacy objects from sqlalchemy are stored in UTC,
-            # but are returned without a timezone attached.
-            # As a transitional aid, assume a tz-naive object is in UTC.
-            value = value.replace(tzinfo=iso8601.iso8601.Utc())
         return value
 
     def from_primitive(self, obj, attr, value):
@@ -304,76 +304,6 @@ class DateTime(FieldType):
         return timeutils.isotime(value)
 
 
-class IPAddress(FieldType):
-    @staticmethod
-    def coerce(obj, attr, value):
-        try:
-            return netaddr.IPAddress(value)
-        except netaddr.AddrFormatError as e:
-            raise ValueError(six.text_type(e))
-
-    def from_primitive(self, obj, attr, value):
-        return self.coerce(obj, attr, value)
-
-    @staticmethod
-    def to_primitive(obj, attr, value):
-        return str(value)
-
-
-class IPV4Address(IPAddress):
-    @staticmethod
-    def coerce(obj, attr, value):
-        result = IPAddress.coerce(obj, attr, value)
-        if result.version != 4:
-            raise ValueError(_('Network "%s" is not valid') % value)
-        return result
-
-
-class IPV6Address(IPAddress):
-    @staticmethod
-    def coerce(obj, attr, value):
-        result = IPAddress.coerce(obj, attr, value)
-        if result.version != 6:
-            raise ValueError(_('Network "%s" is not valid') % value)
-        return result
-
-
-class IPV4AndV6Address(IPAddress):
-    @staticmethod
-    def coerce(obj, attr, value):
-        result = IPAddress.coerce(obj, attr, value)
-        if result.version != 4 and result.version != 6:
-            raise ValueError(_('Network "%s" is not valid') % value)
-        return result
-
-
-class IPNetwork(IPAddress):
-    @staticmethod
-    def coerce(obj, attr, value):
-        try:
-            return netaddr.IPNetwork(value)
-        except netaddr.AddrFormatError as e:
-            raise ValueError(six.text_type(e))
-
-
-class IPV4Network(IPNetwork):
-    @staticmethod
-    def coerce(obj, attr, value):
-        try:
-            return netaddr.IPNetwork(value, version=4)
-        except netaddr.AddrFormatError as e:
-            raise ValueError(six.text_type(e))
-
-
-class IPV6Network(IPNetwork):
-    @staticmethod
-    def coerce(obj, attr, value):
-        try:
-            return netaddr.IPNetwork(value, version=6)
-        except netaddr.AddrFormatError as e:
-            raise ValueError(six.text_type(e))
-
-
 class CompoundFieldType(FieldType):
     def __init__(self, element_type, **field_args):
         self._element_type = Field(element_type, **field_args)
@@ -385,7 +315,7 @@ class List(CompoundFieldType):
             raise ValueError(_('A list is required here'))
         for index, element in enumerate(list(value)):
             value[index] = self._element_type.coerce(
-                    obj, '%s[%i]' % (attr, index), element)
+                obj, '%s[%i]' % (attr, index), element)
         return value
 
     def to_primitive(self, obj, attr, value):
@@ -434,62 +364,6 @@ class Dict(CompoundFieldType):
                       for key, val in sorted(value.items())]))
 
 
-class DictProxyField(object):
-    """Descriptor allowing us to assign pinning data as a dict of key_types
-
-    This allows us to have an object field that will be a dict of key_type
-    keys, allowing that will convert back to string-keyed dict.
-
-    This will take care of the conversion while the dict field will make sure
-    that we store the raw json-serializable data on the object.
-
-    key_type should return a type that unambiguously responds to six.text_type
-    so that calling key_type on it yields the same thing.
-    """
-    def __init__(self, dict_field_name, key_type=int):
-        self._fld_name = dict_field_name
-        self._key_type = key_type
-
-    def __get__(self, obj, obj_type=None):
-        if obj is None:
-            return self
-        if getattr(obj, self._fld_name) is None:
-            return
-        return {self._key_type(k): v
-                for k, v in six.iteritems(getattr(obj, self._fld_name))}
-
-    def __set__(self, obj, val):
-        if val is None:
-            setattr(obj, self._fld_name, val)
-        else:
-            setattr(obj, self._fld_name, {six.text_type(k): v
-                                          for k, v in six.iteritems(val)})
-
-
-class Set(CompoundFieldType):
-    def coerce(self, obj, attr, value):
-        if not isinstance(value, set):
-            raise ValueError(_('A set is required here'))
-
-        coerced = set()
-        for element in value:
-            coerced.add(self._element_type.coerce(
-                obj, '%s["%s"]' % (attr, element), element))
-        return coerced
-
-    def to_primitive(self, obj, attr, value):
-        return tuple(
-            self._element_type.to_primitive(obj, attr, x) for x in value)
-
-    def from_primitive(self, obj, attr, value):
-        return set([self._element_type.from_primitive(obj, attr, x)
-                    for x in value])
-
-    def stringify(self, value):
-        return 'set([%s])' % (
-            ','.join([self._element_type.stringify(x) for x in value]))
-
-
 class Object(FieldType):
     def __init__(self, obj_name, **kwargs):
         self._obj_name = obj_name
@@ -500,7 +374,6 @@ class Object(FieldType):
             obj_name = value.obj_name()
         except AttributeError:
             obj_name = ""
-
         if obj_name != self._obj_name:
             raise ValueError(_('An object of type %s is required here') %
                              self._obj_name)
@@ -513,12 +386,12 @@ class Object(FieldType):
     @staticmethod
     def from_primitive(obj, attr, value):
         # FIXME(danms): Avoid circular import from base.py
-        from nova.objects import base as obj_base
+        from heat.objects import base as obj_base
         # NOTE (ndipanov): If they already got hydrated by the serializer, just
         # pass them back unchanged
-        if isinstance(value, obj_base.NovaObject):
+        if isinstance(value, obj_base.HeatObject):
             return value
-        return obj_base.NovaObject.obj_from_primitive(value, obj._context)
+        return obj_base.HeatObject.obj_from_primitive(value, obj._context)
 
     def describe(self):
         return "Object<%s>" % self._obj_name
@@ -536,30 +409,6 @@ class Object(FieldType):
         return '%s%s' % (self._obj_name, ident)
 
 
-class NetworkModel(FieldType):
-    @staticmethod
-    def coerce(obj, attr, value):
-        if isinstance(value, network_model.NetworkInfo):
-            return value
-        elif isinstance(value, six.string_types):
-            # Hmm, do we need this?
-            return network_model.NetworkInfo.hydrate(value)
-        else:
-            raise ValueError(_('A NetworkModel is required here'))
-
-    @staticmethod
-    def to_primitive(obj, attr, value):
-        return value.json()
-
-    @staticmethod
-    def from_primitive(obj, attr, value):
-        return network_model.NetworkInfo.hydrate(value)
-
-    def stringify(self, value):
-        return 'NetworkModel(%s)' % (
-            ','.join([str(vif['id']) for vif in value]))
-
-
 class AutoTypedField(Field):
     AUTO_TYPE = None
 
@@ -571,8 +420,11 @@ class StringField(AutoTypedField):
     AUTO_TYPE = String()
 
 
-class UUIDField(AutoTypedField):
-    AUTO_TYPE = UUID()
+class UUID(FieldType):
+    @staticmethod
+    def coerce(obj, attr, value):
+        # FIXME(danms): We should actually verify the UUIDness here
+        return str(value)
 
 
 class IntegerField(AutoTypedField):
@@ -591,60 +443,8 @@ class DateTimeField(AutoTypedField):
     AUTO_TYPE = DateTime()
 
 
-class IPAddressField(AutoTypedField):
-    AUTO_TYPE = IPAddress()
-
-
-class IPV4AddressField(AutoTypedField):
-    AUTO_TYPE = IPV4Address()
-
-
-class IPV6AddressField(AutoTypedField):
-    AUTO_TYPE = IPV6Address()
-
-
-class IPV4AndV6AddressField(AutoTypedField):
-    AUTO_TYPE = IPV4AndV6Address()
-
-
-class IPNetworkField(AutoTypedField):
-    AUTO_TYPE = IPNetwork()
-
-
-class IPV4NetworkField(AutoTypedField):
-    AUTO_TYPE = IPV4Network()
-
-
-class IPV6NetworkField(AutoTypedField):
-    AUTO_TYPE = IPV6Network()
-
-
-class DictOfStringsField(AutoTypedField):
-    AUTO_TYPE = Dict(String())
-
-
-class DictOfNullableStringsField(AutoTypedField):
-    AUTO_TYPE = Dict(String(), nullable=True)
-
-
-class DictOfIntegersField(AutoTypedField):
-    AUTO_TYPE = Dict(Integer())
-
-
-class ListOfStringsField(AutoTypedField):
-    AUTO_TYPE = List(String())
-
-
-class SetOfIntegersField(AutoTypedField):
-    AUTO_TYPE = Set(Integer())
-
-
-class ListOfSetsOfIntegersField(AutoTypedField):
-    AUTO_TYPE = List(Set(Integer()))
-
-
-class ListOfDictOfNullableStringsField(AutoTypedField):
-    AUTO_TYPE = List(Dict(String(), nullable=True))
+class JsonField(AutoTypedField):
+    AUTO_TYPE = Json()
 
 
 class ObjectField(AutoTypedField):
