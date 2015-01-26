@@ -133,49 +133,6 @@ class TestDateTime(TestField):
                                   tzinfo=iso8601.iso8601.Utc())))
 
 
-class TestIPAddress(TestField):
-    def setUp(self):
-        super(TestIPAddress, self).setUp()
-        self.field = fields.IPAddressField()
-        self.coerce_good_values = [('1.2.3.4', netaddr.IPAddress('1.2.3.4')),
-                                   ('::1', netaddr.IPAddress('::1')),
-                                   (netaddr.IPAddress('::1'),
-                                    netaddr.IPAddress('::1'))]
-        self.coerce_bad_values = ['1-2', 'foo']
-        self.to_primitive_values = [(netaddr.IPAddress('1.2.3.4'), '1.2.3.4'),
-                                    (netaddr.IPAddress('::1'), '::1')]
-        self.from_primitive_values = [('1.2.3.4',
-                                       netaddr.IPAddress('1.2.3.4')),
-                                      ('::1',
-                                       netaddr.IPAddress('::1'))]
-
-
-class TestIPAddressV4(TestField):
-    def setUp(self):
-        super(TestIPAddressV4, self).setUp()
-        self.field = fields.IPV4AddressField()
-        self.coerce_good_values = [('1.2.3.4', netaddr.IPAddress('1.2.3.4')),
-                                   (netaddr.IPAddress('1.2.3.4'),
-                                    netaddr.IPAddress('1.2.3.4'))]
-        self.coerce_bad_values = ['1-2', 'foo', '::1']
-        self.to_primitive_values = [(netaddr.IPAddress('1.2.3.4'), '1.2.3.4')]
-        self.from_primitive_values = [('1.2.3.4',
-                                       netaddr.IPAddress('1.2.3.4'))]
-
-
-class TestIPAddressV6(TestField):
-    def setUp(self):
-        super(TestIPAddressV6, self).setUp()
-        self.field = fields.IPV6AddressField()
-        self.coerce_good_values = [('::1', netaddr.IPAddress('::1')),
-                                   (netaddr.IPAddress('::1'),
-                                    netaddr.IPAddress('::1'))]
-        self.coerce_bad_values = ['1.2', 'foo', '1.2.3.4']
-        self.to_primitive_values = [(netaddr.IPAddress('::1'), '::1')]
-        self.from_primitive_values = [('::1',
-                                       netaddr.IPAddress('::1'))]
-
-
 class TestDict(TestField):
     def setUp(self):
         super(TestDict, self).setUp()
@@ -190,75 +147,6 @@ class TestDict(TestField):
         self.assertEqual("{key=val}", self.field.stringify({'key': 'val'}))
 
 
-class TestDictOfStrings(TestField):
-    def setUp(self):
-        super(TestDictOfStrings, self).setUp()
-        self.field = fields.DictOfStringsField()
-        self.coerce_good_values = [({'foo': 'bar'}, {'foo': 'bar'}),
-                                   ({'foo': 1}, {'foo': '1'})]
-        self.coerce_bad_values = [{1: 'bar'}, {'foo': None}, 'foo']
-        self.to_primitive_values = [({'foo': 'bar'}, {'foo': 'bar'})]
-        self.from_primitive_values = [({'foo': 'bar'}, {'foo': 'bar'})]
-
-    def test_stringify(self):
-        self.assertEqual("{key='val'}", self.field.stringify({'key': 'val'}))
-
-
-class TestDictOfIntegers(TestField):
-    def setUp(self):
-        super(TestDictOfIntegers, self).setUp()
-        self.field = fields.DictOfIntegersField()
-        self.coerce_good_values = [({'foo': '42'}, {'foo': 42}),
-                                   ({'foo': 4.2}, {'foo': 4})]
-        self.coerce_bad_values = [{1: 'bar'}, {'foo': 'boo'},
-                                  'foo', {'foo': None}]
-        self.to_primitive_values = [({'foo': 42}, {'foo': 42})]
-        self.from_primitive_values = [({'foo': 42}, {'foo': 42})]
-
-    def test_stringify(self):
-        self.assertEqual("{key=42}", self.field.stringify({'key': 42}))
-
-
-class TestDictOfStringsNone(TestField):
-    def setUp(self):
-        super(TestDictOfStringsNone, self).setUp()
-        self.field = fields.DictOfNullableStringsField()
-        self.coerce_good_values = [({'foo': 'bar'}, {'foo': 'bar'}),
-                                   ({'foo': 1}, {'foo': '1'}),
-                                   ({'foo': None}, {'foo': None})]
-        self.coerce_bad_values = [{1: 'bar'}, 'foo']
-        self.to_primitive_values = [({'foo': 'bar'}, {'foo': 'bar'})]
-        self.from_primitive_values = [({'foo': 'bar'}, {'foo': 'bar'})]
-
-    def test_stringify(self):
-        self.assertEqual("{k2=None,key='val'}",
-                         self.field.stringify({'k2': None,
-                                               'key': 'val'}))
-
-
-class TestListOfDictOfNullableStringsField(TestField):
-    def setUp(self):
-        super(TestListOfDictOfNullableStringsField, self).setUp()
-        self.field = fields.ListOfDictOfNullableStringsField()
-        self.coerce_good_values = [([{'f': 'b', 'f1': 'b1'}, {'f2': 'b2'}],
-                                    [{'f': 'b', 'f1': 'b1'}, {'f2': 'b2'}]),
-                                   ([{'f': 1}, {'f1': 'b1'}],
-                                    [{'f': '1'}, {'f1': 'b1'}]),
-                                   ([{'foo': None}], [{'foo': None}])]
-        self.coerce_bad_values = [[{1: 'a'}], ['ham', 1], ['eggs']]
-        self.to_primitive_values = [([{'f': 'b'}, {'f1': 'b1'}, {'f2': None}],
-                                     [{'f': 'b'}, {'f1': 'b1'}, {'f2': None}])]
-        self.from_primitive_values = [([{'f': 'b'}, {'f1': 'b1'},
-                                        {'f2': None}],
-                                       [{'f': 'b'}, {'f1': 'b1'},
-                                        {'f2': None}])]
-
-    def test_stringify(self):
-        self.assertEqual("[{f=None,f1='b1'},{f2='b2'}]",
-                         self.field.stringify(
-                             [{'f': None, 'f1': 'b1'}, {'f2': 'b2'}]))
-
-
 class TestList(TestField):
     def setUp(self):
         super(TestList, self).setUp()
@@ -270,61 +158,6 @@ class TestList(TestField):
 
     def test_stringify(self):
         self.assertEqual('[123]', self.field.stringify([123]))
-
-
-class TestListOfStrings(TestField):
-    def setUp(self):
-        super(TestListOfStrings, self).setUp()
-        self.field = fields.ListOfStringsField()
-        self.coerce_good_values = [(['foo', 'bar'], ['foo', 'bar'])]
-        self.coerce_bad_values = ['foo']
-        self.to_primitive_values = [(['foo'], ['foo'])]
-        self.from_primitive_values = [(['foo'], ['foo'])]
-
-    def test_stringify(self):
-        self.assertEqual("['abc']", self.field.stringify(['abc']))
-
-
-class TestSet(TestField):
-    def setUp(self):
-        super(TestSet, self).setUp()
-        self.field = fields.Field(fields.Set(FakeFieldType()))
-        self.coerce_good_values = [(set(['foo', 'bar']),
-                                    set(['*foo*', '*bar*']))]
-        self.coerce_bad_values = [['foo'], {'foo': 'bar'}]
-        self.to_primitive_values = [(set(['foo']), tuple(['!foo!']))]
-        self.from_primitive_values = [(tuple(['!foo!']), set(['foo']))]
-
-    def test_stringify(self):
-        self.assertEqual('set([123])', self.field.stringify(set([123])))
-
-
-class TestSetOfIntegers(TestField):
-    def setUp(self):
-        super(TestSetOfIntegers, self).setUp()
-        self.field = fields.SetOfIntegersField()
-        self.coerce_good_values = [(set(['1', 2]),
-                                    set([1, 2]))]
-        self.coerce_bad_values = [set(['foo'])]
-        self.to_primitive_values = [(set([1]), tuple([1]))]
-        self.from_primitive_values = [(tuple([1]), set([1]))]
-
-    def test_stringify(self):
-        self.assertEqual('set([1,2])', self.field.stringify(set([1, 2])))
-
-
-class TestListOfSetsOfIntegers(TestField):
-    def setUp(self):
-        super(TestListOfSetsOfIntegers, self).setUp()
-        self.field = fields.ListOfSetsOfIntegersField()
-        self.coerce_good_values = [([set(['1', 2]), set([3, '4'])],
-                                    [set([1, 2]), set([3, 4])])]
-        self.coerce_bad_values = [[set(['foo'])]]
-        self.to_primitive_values = [([set([1])], [tuple([1])])]
-        self.from_primitive_values = [([tuple([1])], [set([1])])]
-
-    def test_stringify(self):
-        self.assertEqual('[set([1,2])]', self.field.stringify([set([1, 2])]))
 
 
 class TestObject(TestField):

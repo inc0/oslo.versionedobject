@@ -16,7 +16,7 @@ import abc
 import datetime
 import json
 
-from oslo.i18n import _
+from versionedobjects._i18n import _
 from oslo.utils import timeutils
 import six
 
@@ -386,12 +386,12 @@ class Object(FieldType):
     @staticmethod
     def from_primitive(obj, attr, value):
         # FIXME(danms): Avoid circular import from base.py
-        from heat.objects import base as obj_base
+        from versionedobjects.objects import base as obj_base
         # NOTE (ndipanov): If they already got hydrated by the serializer, just
         # pass them back unchanged
-        if isinstance(value, obj_base.HeatObject):
+        if isinstance(value, obj_base.VersionedObject):
             return value
-        return obj_base.HeatObject.obj_from_primitive(value, obj._context)
+        return obj_base.VersionedObject.obj_from_primitive(value, obj._context)
 
     def describe(self):
         return "Object<%s>" % self._obj_name

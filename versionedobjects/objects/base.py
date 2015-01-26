@@ -23,7 +23,7 @@ import logging
 import traceback
 
 import netaddr
-from oslo.i18n import _, _LE
+from versionedobjects._i18n import _, _LE
 from oslo import messaging
 from oslo.utils import timeutils
 import six

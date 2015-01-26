@@ -45,14 +45,14 @@ from versionedobjects.openstack.common.fixture import logging as log_fixture
 from versionedobjects.tests import fixtures as versionedobjects_fixtures
 
 CONF = cfg.CONF
-CONF.set_override('use_stderr', False)
+#CONF.set_override('use_stderr', False)
 
-logging.setup('versionedobjects')
+logging.getLogger('versionedobjects')
 
 # NOTE(comstud): Make sure we have all of the objects loaded. We do this
 # at module import time, because we may be using mock decorators in our
 # tests that run at import time.
-objects.register_all()
+#objects.register_all()
 
 _TRUE_VALUES = ('True', 'true', '1', 'yes')
 
@@ -185,9 +185,9 @@ class TestCase(testtools.TestCase):
         # NOTE(danms): Make sure to reset us back to non-remote objects
         # for each test to avoid interactions. Also, backup the object
         # registry.
-        objects_base.NovaObject.indirection_api = None
+        objects_base.VersionedObject.indirection_api = None
         self._base_test_obj_backup = copy.copy(
-            objects_base.NovaObject._obj_classes)
+            objects_base.VersionedObject._obj_classes)
         self.addCleanup(self._restore_obj_registry)
 
         mox_fixture = self.useFixture(moxstubout.MoxStubout())
@@ -197,7 +197,7 @@ class TestCase(testtools.TestCase):
         self.useFixture(fixtures.EnvironmentVariable('http_proxy'))
 
     def _restore_obj_registry(self):
-        objects_base.NovaObject._obj_classes = self._base_test_obj_backup
+        objects_base.VersionedObject._obj_classes = self._base_test_obj_backup
 
     def _clear_attrs(self):
         # Delete attributes that don't start with _ so they don't pin

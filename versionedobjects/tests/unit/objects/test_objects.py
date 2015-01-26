@@ -195,9 +195,9 @@ class TestMetaclass(test.TestCase):
                 fields = {'foo': field()}
             return TestField
 
-        create_class(fields.IPV4AndV6AddressField)
+        create_class(fields.BooleanField)
         self.assertRaises(exception.ObjectFieldInvalid,
-                          create_class, fields.IPV4AndV6Address)
+                          create_class, fields.Boolean)
         self.assertRaises(exception.ObjectFieldInvalid,
                           create_class, int)
 
@@ -234,15 +234,6 @@ class TestObjToPrimitive(test.TestCase):
             value.foo = i
         self.assertEqual([{'foo': 0}, {'foo': 1}],
                          base.obj_to_primitive(mylist))
-
-    def test_obj_to_primitive_with_ip_addr(self):
-        class TestObject(base.VersionedObject):
-            fields = {'addr': fields.IPAddressField(),
-                      'cidr': fields.IPNetworkField()}
-
-        obj = TestObject(addr='1.2.3.4', cidr='1.1.1.1/16')
-        self.assertEqual({'addr': '1.2.3.4', 'cidr': '1.1.1.1/16'},
-                         base.obj_to_primitive(obj))
 
 
 class TestObjMakeList(test.TestCase):

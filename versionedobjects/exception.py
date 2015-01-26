@@ -26,7 +26,7 @@ import sys
 from oslo.config import cfg
 import webob.exc
 
-from oslo.i18n import _, _LE
+from versionedobjects._i18n import _, _LE
 
 LOG = logging.getLogger(__name__)
 

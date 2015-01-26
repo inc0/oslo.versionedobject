@@ -21,7 +21,7 @@ import functools
 import inspect
 import logging
 
-from openstack.common._i18n import _
+from versionedobjects._i18n import _
 import pkg_resources
 import six
 
