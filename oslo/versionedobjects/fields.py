@@ -16,9 +16,10 @@ import abc
 import datetime
 import json
 
-from versionedobjects._i18n import _
-from oslo.utils import timeutils
 import six
+
+from oslo.utils import timeutils
+from oslo.versionedobjects._i18n import _
 
 
 class KeyTypeError(TypeError):
@@ -386,7 +387,7 @@ class Object(FieldType):
     @staticmethod
     def from_primitive(obj, attr, value):
         # FIXME(danms): Avoid circular import from base.py
-        from versionedobjects.objects import base as obj_base
+        from oslo.versionedobjects import base as obj_base
         # NOTE (ndipanov): If they already got hydrated by the serializer, just
         # pass them back unchanged
         if isinstance(value, obj_base.VersionedObject):

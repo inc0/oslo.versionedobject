@@ -15,7 +15,6 @@
 """VersionedObjects common internal object model"""
 
 import collections
-import contextlib
 import copy
 import datetime
 import functools
@@ -23,17 +22,17 @@ import logging
 import traceback
 
 import netaddr
-from versionedobjects._i18n import _, _LE
-from oslo import messaging
-from oslo.utils import timeutils
 import six
 
-from versionedobjects import exception
-from versionedobjects import objects
-from versionedobjects.objects import fields
-from versionedobjects.openstack.common import context
-from versionedobjects.openstack.common import versionutils
-from versionedobjects import utils
+from oslo.versionedobjects._i18n import _, _LE
+from oslo import messaging
+from oslo.utils import timeutils
+from oslo import versionedobjects as objects
+from oslo.versionedobjects import exception
+from oslo.versionedobjects import fields
+from oslo.versionedobjects.openstack.common import context
+from oslo.versionedobjects.openstack.common import versionutils
+from oslo.versionedobjects import utils
 
 
 LOG = logging.getLogger('object')

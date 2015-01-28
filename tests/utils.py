@@ -31,28 +31,22 @@ import os
 
 import fixtures
 import mock
-from oslo.config import cfg
-from oslo.config import fixture as config_fixture
-from oslo.utils import timeutils
 from oslo_concurrency import lockutils
 from oslotest import moxstubout
 import six
 import testtools
 
-from versionedobjects import objects
-from versionedobjects.objects import base as objects_base
-from versionedobjects.openstack.common.fixture import logging as log_fixture
-from versionedobjects.tests import fixtures as versionedobjects_fixtures
+from oslo.config import cfg
+from oslo.config import fixture as config_fixture
+from oslo.utils import timeutils
+from oslo.versionedobjects import base as objects_base
+from oslo.versionedobjects.openstack.common.fixture \
+    import logging as log_fixture
+from tests import versionedobjects_fixtures
 
 CONF = cfg.CONF
-#CONF.set_override('use_stderr', False)
 
 logging.getLogger('versionedobjects')
-
-# NOTE(comstud): Make sure we have all of the objects loaded. We do this
-# at module import time, because we may be using mock decorators in our
-# tests that run at import time.
-#objects.register_all()
 
 _TRUE_VALUES = ('True', 'true', '1', 'yes')
 

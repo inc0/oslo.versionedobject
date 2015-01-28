@@ -23,6 +23,7 @@ import os
 import warnings
 
 import fixtures
+
 from oslo.config import cfg
 
 _TRUE_VALUES = ('True', 'true', '1', 'yes')

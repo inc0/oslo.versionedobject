@@ -15,25 +15,19 @@
 import contextlib
 import copy
 import datetime
-import hashlib
-import inspect
 import logging
-import os
-import pprint
 
 import mock
-from oslo.serialization import jsonutils
-from oslo.utils import timeutils
 import six
 from testtools import matchers
 
-from versionedobjects import exception
-from versionedobjects import objects
-from versionedobjects.objects import base
-from versionedobjects.objects import fields
-from versionedobjects.openstack.common import context
-from versionedobjects import test
-from versionedobjects import utils
+from oslo.serialization import jsonutils
+from oslo.utils import timeutils
+from oslo.versionedobjects import base
+from oslo.versionedobjects import exception
+from oslo.versionedobjects import fields
+from oslo.versionedobjects.openstack.common import context
+from tests import utils as test
 
 
 LOG = logging.getLogger(__name__)

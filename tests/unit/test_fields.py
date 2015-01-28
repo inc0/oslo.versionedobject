@@ -15,12 +15,11 @@
 import datetime
 
 import iso8601
-import netaddr
-from oslo.utils import timeutils
 
-from versionedobjects.objects import base as obj_base
-from versionedobjects.objects import fields
-from versionedobjects import test
+from oslo.utils import timeutils
+from oslo.versionedobjects import base as obj_base
+from oslo.versionedobjects import fields
+from tests import utils as test
 
 
 class FakeFieldType(fields.FieldType):

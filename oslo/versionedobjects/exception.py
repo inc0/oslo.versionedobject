@@ -23,10 +23,10 @@ SHOULD include dedicated exception logging.
 import logging
 import sys
 
-from oslo.config import cfg
 import webob.exc
 
-from versionedobjects._i18n import _, _LE
+from oslo.config import cfg
+from oslo.versionedobjects._i18n import _, _LE
 
 LOG = logging.getLogger(__name__)
 

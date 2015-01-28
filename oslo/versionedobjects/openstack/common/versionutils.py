@@ -21,9 +21,10 @@ import functools
 import inspect
 import logging
 
-from versionedobjects._i18n import _
 import pkg_resources
 import six
+
+from oslo.versionedobjects._i18n import _
 
 
 LOG = logging.getLogger(__name__)
