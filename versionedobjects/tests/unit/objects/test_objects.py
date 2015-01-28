@@ -80,7 +80,7 @@ class MyObj(base.VersionedPersistentObject, base.VersionedObject,
 
     @base.remotable
     def _update_test(self, context):
-        if context.project_id == 'alternate':
+        if context.tenant == 'alternate':
             self.bar = 'alternate-context'
         else:
             self.bar = 'updated'
@@ -296,9 +296,11 @@ class _BaseTestCase(test.TestCase):
     def setUp(self):
         super(_BaseTestCase, self).setUp()
         self.remote_object_calls = list()
-        self.user_id = 'fake-user'
-        self.project_id = 'fake-project'
-        self.context = context.RequestContext(self.user_id, self.project_id)
+        self.token = 'fake-authtoken'
+        self.user = 'fake-user'
+        self.tenant = 'fake-project'
+        self.context = context.RequestContext(self.token, self.user,
+                                              self.tenant)
 
     def compare_obj(self, obj, db_obj, subs=None, allow_missing=None,
                     comparators=None):
@@ -349,13 +351,6 @@ def things_temporarily_local():
 
 
 class _TestObject(object):
-    def test_object_attrs_in_init(self):
-        # Spot check a few
-        objects.Instance
-        objects.InstanceInfoCache
-        objects.SecurityGroup
-        # Now check the test one in this file. Should be newest version
-        self.assertEqual('1.6', objects.MyObj.VERSION)
 
     def test_hydration_type_error(self):
         primitive = {'nova_object.name': 'MyObj',
@@ -499,8 +494,8 @@ class _TestObject(object):
         self.assertEqual('1.6', error.kwargs['supported'])
 
     def test_with_alternate_context(self):
-        ctxt1 = context.RequestContext('foo', 'foo')
-        ctxt2 = context.RequestContext('bar', 'alternate')
+        ctxt1 = context.RequestContext('', 'foo', 'foo')
+        ctxt2 = context.RequestContext('', 'bar', 'alternate')
         obj = MyObj.query(ctxt1)
         obj._update_test(ctxt2)
         self.assertEqual(obj.bar, 'alternate-context')
@@ -644,27 +639,6 @@ class _TestObject(object):
                          len(TestSubclassedObject.fields))
         self.assertEqual(set(myobj_fields) | set(myobj3_fields),
                          set(TestSubclassedObject.fields.keys()))
-
-    def test_obj_as_admin(self):
-        obj = MyObj(context=self.context)
-
-        def fake(*args, **kwargs):
-            self.assertTrue(obj._context.is_admin)
-
-        with mock.patch.object(obj, 'obj_reset_changes') as mock_fn:
-            mock_fn.side_effect = fake
-            with obj.obj_as_admin():
-                obj.save()
-            self.assertTrue(mock_fn.called)
-
-        self.assertFalse(obj._context.is_admin)
-
-    def test_obj_as_admin_orphaned(self):
-        def testme():
-            obj = MyObj()
-            with obj.obj_as_admin():
-                pass
-        self.assertRaises(exception.OrphanedObjectError, testme)
 
     def test_get_changes(self):
         obj = MyObj()
@@ -1013,244 +987,3 @@ class TestObjectSerializer(_BaseTestCase):
         self.assertEqual(thing, primitive)
         thing2 = ser.deserialize_entity(self.context, thing)
         self.assertIsInstance(thing2['foo'], base.VersionedObject)
-
-
-# NOTE(danms): The hashes in this list should only be changed if
-# they come with a corresponding version bump in the affected
-# objects
-object_data = {
-    'Agent': '1.0-c4ff8a833aee8ae44ab8aed1a171273d',
-    'AgentList': '1.0-31f07426a729311a42ff7f6246e76e25',
-    'Aggregate': '1.1-f5d477be06150529a9b2d27cc49030b5',
-    'AggregateList': '1.2-4b02a285b8612bfb86a96ff80052fb0a',
-    'BandwidthUsage': '1.2-a9d7c2ba54995e48ce38688c51c9416d',
-    'BandwidthUsageList': '1.2-5b564cbfd5ae6e106443c086938e7602',
-    'BlockDeviceMapping': '1.5-9968ffe513e7672484b0f528b034cd0f',
-    'BlockDeviceMappingList': '1.6-ee2ed2eb3f3f2f54d573ccea0ff2eeaa',
-    'ComputeNode': '1.9-d59bebd3176d86f0f7ea02086732a0d4',
-    'ComputeNodeList': '1.9-4fdeaf7dce98f5736f0ed239c9265c65',
-    'DNSDomain': '1.0-5bdc288d7c3b723ce86ede998fd5c9ba',
-    'DNSDomainList': '1.0-cfb3e7e82be661501c31099523154db4',
-    'EC2InstanceMapping': '1.0-627baaf4b12c9067200979bdc4558a99',
-    'EC2SnapshotMapping': '1.0-26cf315be1f8abab4289d4147671c836',
-    'EC2VolumeMapping': '1.0-2f8c3bf077c65a425294ec2b361c9143',
-    'FixedIP': '1.7-2472964d39e50da67202109eb85cd173',
-    'FixedIPList': '1.7-125de790b58cfb8c84ffc8c34db4a81e',
-    'Flavor': '1.1-096cfd023c35d07542cf732fb29b45e4',
-    'FlavorList': '1.1-a3d5551267cb8f62ff38ded125900721',
-    'FloatingIP': '1.6-27eb68b7c9c620dd5f0561b5a3be0e82',
-    'FloatingIPList': '1.7-f376f63ed99243f9d90841b7f6732bbf',
-    'HVSpec': '1.0-c4d8377cc4fe519930e60c1d8265a142',
-    'Instance': '1.17-972cae223db35e88bb184bdf8c197229',
-    'InstanceAction': '1.1-6b1d0a6dbd522b5a83c20757ec659663',
-    'InstanceActionEvent': '1.1-42dbdba74bd06e0619ca75cd3397cd1b',
-    'InstanceActionEventList': '1.0-1d5cc958171d6ce07383c2ad6208318e',
-    'InstanceActionList': '1.0-368410fdb8d69ae20c495308535d6266',
-    'InstanceExternalEvent': '1.0-f1134523654407a875fd59b80f759ee7',
-    'InstanceFault': '1.2-313438e37e9d358f3566c85f6ddb2d3e',
-    'InstanceFaultList': '1.1-aeb598ffd0cd6aa61fca7adf0f5e900d',
-    'InstanceGroup': '1.9-95ece99f092e8f4f88327cdbb44162c9',
-    'InstanceGroupList': '1.6-c6b78f3c9d9080d33c08667e80589817',
-    'InstanceInfoCache': '1.5-ef64b604498bfa505a8c93747a9d8b2f',
-    'InstanceList': '1.13-179093360c48747a41694cc2f326d75d',
-    'InstanceNUMACell': '1.2-5d2dfa36e9ecca9b63f24bf3bc958ea4',
-    'InstanceNUMATopology': '1.1-86b95d263c4c68411d44c6741b8d2bb0',
-    'InstancePCIRequest': '1.1-e082d174f4643e5756ba098c47c1510f',
-    'InstancePCIRequests': '1.1-bc7c6684d8579ee49d6a3b8aef756918',
-    'KeyPair': '1.1-3410f51950d052d861c11946a6ae621a',
-    'KeyPairList': '1.0-71132a568cc5d078ba1748a9c02c87b8',
-    'Migration': '1.1-67c47726c2c71422058cd9d149d6d3ed',
-    'MigrationList': '1.1-8c5f678edc72a592d591a13b35e54353',
-    'MyObj': '1.6-02b1e712b7ee334fa3fefe024c340977',
-    'MyOwnedObject': '1.0-0f3d6c028543d7f3715d121db5b8e298',
-    'Network': '1.2-2ea21ede5e45bb80e7b7ac7106915c4e',
-    'NetworkList': '1.2-aa4ad23f035b97a41732ea8b3445fc5e',
-    'NetworkRequest': '1.1-f31192f5a725017707f989585e12d7dc',
-    'NetworkRequestList': '1.1-beeab521ac9450f1f5ef4eaa945a783c',
-    'NUMACell': '1.2-cb9c3b08cc1c418d021492f788d04173',
-    'NUMAPagesTopology': '1.0-97d93f70a68625b5f29ff63a40a4f612',
-    'NUMATopology': '1.2-790f6bdff85bf6e5677f409f3a4f1c6a',
-    'PciDevice': '1.3-e059641df10e85d464672c5183a9473b',
-    'PciDeviceList': '1.1-38cbe2d3c23b9e46f7a74b486abcad85',
-    'PciDevicePool': '1.0-d6ed1abe611c9947345a44155abe6f11',
-    'PciDevicePoolList': '1.0-d31e08e0ff620a4df7cc2014b6c50da8',
-    'Quotas': '1.2-36098cf2143e6535873c3fa3d6fe56f7',
-    'QuotasNoOp': '1.2-164c628906b170fd946a7672e85e4935',
-    'S3ImageMapping': '1.0-9225943a44a91ad0349b9fd8bd3f3ce2',
-    'SecurityGroup': '1.1-bba0e72865e0953793e796571692453b',
-    'SecurityGroupList': '1.0-528e6448adfeeb78921ebeda499ab72f',
-    'SecurityGroupRule': '1.1-a9175baf7664439af1a16c2010b55576',
-    'SecurityGroupRuleList': '1.1-667fca3a9928f23d2d10e61962c55f3c',
-    'Service': '1.7-82bbfd46a744a9c89bc44b47a1b81683',
-    'ServiceList': '1.5-f137850fbd69933a69a03eae572b05f0',
-    'Service': '1.8-82bbfd46a744a9c89bc44b47a1b81683',
-    'ServiceList': '1.6-f8bd332b71ff1c3a86b88b6070072fd4',
-    'Tag': '1.0-a11531f4e4e3166eef6243d6d58a18bd',
-    'TagList': '1.0-e89bf8c8055f1f1d654fb44f0abf1f53',
-    'TestSubclassedObject': '1.6-87177ccbefd7a740a9e261f958e15b00',
-    'VirtualInterface': '1.0-10fdac4c704102b6d57d6936d6d790d2',
-    'VirtualInterfaceList': '1.0-accbf02628a8063c1d885077a2bf49b6',
-    'VirtCPUTopology': '1.0-fc694de72e20298f7c6bab1083fd4563',
-}
-
-
-object_relationships = {
-    'BlockDeviceMapping': {'Instance': '1.17'},
-    'ComputeNode': {'PciDevicePoolList': '1.0'},
-    'FixedIP': {'Instance': '1.17', 'Network': '1.2',
-                'VirtualInterface': '1.0',
-                'FloatingIPList': '1.7'},
-    'FloatingIP': {'FixedIP': '1.7'},
-    'Instance': {'InstanceFault': '1.2',
-                 'InstanceInfoCache': '1.5',
-                 'InstanceNUMATopology': '1.1',
-                 'PciDeviceList': '1.1',
-                 'TagList': '1.0',
-                 'SecurityGroupList': '1.0',
-                 'InstancePCIRequests': '1.1'},
-    'InstanceNUMACell': {'VirtCPUTopology': '1.0'},
-    'MyObj': {'MyOwnedObject': '1.0'},
-    'SecurityGroupRule': {'SecurityGroup': '1.1'},
-    'Service': {'ComputeNode': '1.9'},
-    'TestSubclassedObject': {'MyOwnedObject': '1.0'}
-}
-
-
-class TestObjectVersions(test.TestCase):
-    def _find_remotable_method(self, cls, thing, parent_was_remotable=False):
-        """Follow a chain of remotable things down to the original function."""
-        if isinstance(thing, classmethod):
-            return self._find_remotable_method(cls, thing.__get__(None, cls))
-        elif inspect.ismethod(thing) and hasattr(thing, 'remotable'):
-            return self._find_remotable_method(cls, thing.original_fn,
-                                               parent_was_remotable=True)
-        elif parent_was_remotable:
-            # We must be the first non-remotable thing underneath a stack of
-            # remotable things (i.e. the actual implementation method)
-            return thing
-        else:
-            # This means the top-level thing never hit a remotable layer
-            return None
-
-    def _get_fingerprint(self, obj_name):
-        obj_class = base.VersionedObject._obj_classes[obj_name][0]
-        fields = obj_class.fields.items()
-        fields.sort()
-        methods = []
-        for name in dir(obj_class):
-            thing = getattr(obj_class, name)
-            if inspect.ismethod(thing) or isinstance(thing, classmethod):
-                method = self._find_remotable_method(obj_class, thing)
-                if method:
-                    methods.append((name, inspect.getargspec(method)))
-        methods.sort()
-        # NOTE(danms): Things that need a version bump are any fields
-        # and their types, or the signatures of any remotable methods.
-        # Of course, these are just the mechanical changes we can detect,
-        # but many other things may require a version bump (method behavior
-        # and return value changes, for example).
-        if hasattr(obj_class, 'child_versions'):
-            relevant_data = (fields, methods, obj_class.child_versions)
-        else:
-            relevant_data = (fields, methods)
-        fingerprint = '%s-%s' % (obj_class.VERSION,
-                                 hashlib.md5(str(relevant_data)).hexdigest())
-        return fingerprint
-
-    def test_versions(self):
-        fingerprints = {}
-        for obj_name in base.VersionedObject._obj_classes:
-            fingerprints[obj_name] = self._get_fingerprint(obj_name)
-
-        if os.getenv('GENERATE_HASHES'):
-            file('object_hashes.txt', 'w').write(
-                pprint.pformat(fingerprints))
-            raise test.TestingException(
-                'Generated hashes in object_hashes.txt')
-
-        stored = set(object_data.items())
-        computed = set(fingerprints.items())
-        changed = stored.symmetric_difference(computed)
-        expected = {}
-        actual = {}
-        for name, hash in changed:
-            expected[name] = object_data.get(name)
-            actual[name] = fingerprints.get(name)
-
-        self.assertEqual(expected, actual,
-                         'Some objects have changed; please make sure the '
-                         'versions have been bumped, and then update their '
-                         'hashes here.')
-
-    def _build_tree(self, tree, obj_class):
-        obj_name = obj_class.obj_name()
-        if obj_name in tree:
-            return
-
-        for name, field in obj_class.fields.items():
-            if isinstance(field._type, fields.Object):
-                sub_obj_name = field._type._obj_name
-                sub_obj_class = base.VersionedObject._obj_classes[
-                    sub_obj_name][0]
-                self._build_tree(tree, sub_obj_class)
-                tree.setdefault(obj_name, {})
-                tree[obj_name][sub_obj_name] = sub_obj_class.VERSION
-
-    def test_relationships(self):
-        tree = {}
-        for obj_name in base.VersionedObject._obj_classes.keys():
-            self._build_tree(
-                tree, base.VersionedObject._obj_classes[obj_name][0])
-
-        stored = set([(x, str(y)) for x, y in object_relationships.items()])
-        computed = set([(x, str(y)) for x, y in tree.items()])
-        changed = stored.symmetric_difference(computed)
-        expected = {}
-        actual = {}
-        for name, deps in changed:
-            expected[name] = object_relationships.get(name)
-            actual[name] = tree.get(name)
-        self.assertEqual(expected, actual,
-                         'Some objects have changed dependencies. '
-                         'Please make sure to bump the versions of '
-                         'parent objects and provide a rule in their '
-                         'obj_make_compatible() routines to backlevel '
-                         'the child object.')
-
-    def test_obj_make_compatible(self):
-        # Iterate all object classes and verify that we can run
-        # obj_make_compatible with every older version than current.
-        # This doesn't actually test the data conversions, but it at least
-        # makes sure the method doesn't blow up on something basic like
-        # expecting the wrong version format.
-        for obj_name in base.VersionedObject._obj_classes:
-            obj_class = base.VersionedObject._obj_classes[obj_name][0]
-            version = utils.convert_version_to_tuple(obj_class.VERSION)
-            for n in range(version[1]):
-                test_version = '%d.%d' % (version[0], n)
-                LOG.info('testing obj: %s version: %s' %
-                         (obj_name, test_version))
-                obj_class().obj_to_primitive(target_version=test_version)
-
-    def test_obj_relationships_in_order(self):
-        # Iterate all object classes and verify that we can run
-        # obj_make_compatible with every older version than current.
-        # This doesn't actually test the data conversions, but it at least
-        # makes sure the method doesn't blow up on something basic like
-        # expecting the wrong version format.
-        for obj_name in base.VersionedObject._obj_classes:
-            obj_class = base.VersionedObject._obj_classes[obj_name][0]
-            for field, versions in obj_class.obj_relationships.items():
-                last_my_version = (0, 0)
-                last_child_version = (0, 0)
-                for my_version, child_version in versions:
-                    _my_version = utils.convert_version_to_tuple(my_version)
-                    _ch_version = utils.convert_version_to_tuple(child_version)
-                    self.assertTrue((last_my_version < _my_version
-                                     and last_child_version <= _ch_version),
-                                    'Object %s relationship '
-                                    '%s->%s for field %s is out of order' % (
-                                        obj_name, my_version, child_version,
-                                        field))
-                    last_my_version = _my_version
-                    last_child_version = _ch_version
