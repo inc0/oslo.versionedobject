@@ -118,7 +118,7 @@ class VersionedObjectMetaclass(type):
         for i, obj in enumerate(cls._obj_classes[obj_name]):
             if cls.VERSION == obj.VERSION:
                 cls._obj_classes[obj_name][i] = cls
-                # Update nova.objects with this newer class.
+                # Update versionedobjects with this newer class.
                 setattr(objects, obj_name, cls)
                 break
             if _vers_tuple(cls) > _vers_tuple(obj):
@@ -126,13 +126,13 @@ class VersionedObjectMetaclass(type):
                 cls._obj_classes[obj_name].insert(i, cls)
                 if i == 0:
                     # Later version than we've seen before. Update
-                    # nova.objects.
+                    # versionedobjects.
                     setattr(objects, obj_name, cls)
                 break
         else:
             cls._obj_classes[obj_name].append(cls)
             # Either this is the first time we've seen the object or it's
-            # an older version than anything we'e seen. Update nova.objects
+            # an older version than anything we'e seen. Update versionedobjects
             # only if it's the first time we've seen this object name.
             if not hasattr(objects, obj_name):
                 setattr(objects, obj_name, cls)
@@ -325,8 +325,8 @@ class VersionedObject(object):
         self = cls()
         self._context = context
         self.VERSION = objver
-        objdata = primitive['nova_object.data']
-        changes = primitive.get('nova_object.changes', [])
+        objdata = primitive['versioned_object.data']
+        changes = primitive.get('versioned_object.changes', [])
         for name, field in self.fields.items():
             if name in objdata:
                 setattr(self, name, field.from_primitive(self, name,
@@ -337,14 +337,14 @@ class VersionedObject(object):
     @classmethod
     def obj_from_primitive(cls, primitive, context=None):
         """Object field-by-field hydration."""
-        if primitive['nova_object.namespace'] != 'nova':
+        if primitive['versioned_object.namespace'] != 'versionedobjects':
             # NOTE(danms): We don't do anything with this now, but it's
             # there for "the future"
             raise exception.UnsupportedObjectError(
-                objtype='%s.%s' % (primitive['nova_object.namespace'],
-                                   primitive['nova_object.name']))
-        objname = primitive['nova_object.name']
-        objver = primitive['nova_object.version']
+                objtype='%s.%s' % (primitive['versioned_object.namespace'],
+                                   primitive['versioned_object.name']))
+        objname = primitive['versioned_object.name']
+        objver = primitive['versioned_object.version']
         objclass = cls.obj_class_from_name(objname, objver)
         return objclass._obj_from_primitive(context, objver, primitive)
 
@@ -391,15 +391,16 @@ class VersionedObject(object):
                 return
             if isinstance(obj, VersionedObject):
                 obj.obj_make_compatible(
-                    primitive[field]['nova_object.data'],
+                    primitive[field]['versioned_object.data'],
                     to_version)
-                primitive[field]['nova_object.version'] = to_version
+                primitive[field]['versioned_object.version'] = to_version
             elif isinstance(obj, list):
                 for i, element in enumerate(obj):
                     element.obj_make_compatible(
-                        primitive[field][i]['nova_object.data'],
+                        primitive[field][i]['versioned_object.data'],
                         to_version)
-                    primitive[field][i]['nova_object.version'] = to_version
+                    primitive[field][i][
+                        'versioned_object.version'] = to_version
 
         target_version = utils.convert_version_to_tuple(target_version)
         for index, versions in enumerate(self.obj_relationships[field]):
@@ -446,8 +447,8 @@ class VersionedObject(object):
         :param:primitive: The result of self.obj_to_primitive()
         :param:target_version: The version string requested by the recipient
         of the object
-        :raises: nova.exception.UnsupportedObjectError if conversion
-        is not possible for some reason
+        :raises: versionedobjects.exception.UnsupportedObjectError
+        if conversion is not possible for some reason
         """
         for key, field in self.fields.items():
             if not isinstance(field, (fields.ObjectField,
@@ -475,12 +476,12 @@ class VersionedObject(object):
                                                      getattr(self, name))
         if target_version:
             self.obj_make_compatible(primitive, target_version)
-        obj = {'nova_object.name': self.obj_name(),
-               'nova_object.namespace': 'nova',
-               'nova_object.version': target_version or self.VERSION,
-               'nova_object.data': primitive}
+        obj = {'versioned_object.name': self.obj_name(),
+               'versioned_object.namespace': 'versionedobjects',
+               'versioned_object.version': target_version or self.VERSION,
+               'versioned_object.data': primitive}
         if self.obj_what_changed():
-            obj['nova_object.changes'] = list(self.obj_what_changed())
+            obj['versioned_object.changes'] = list(self.obj_what_changed())
         return obj
 
     def obj_set_defaults(self, *attrs):
@@ -497,11 +498,7 @@ class VersionedObject(object):
             setattr(self, attr, default)
 
     def obj_load_attr(self, attrname):
-        """Load an additional attribute from the real object.
-
-        This should use self._conductor, and cache any data that might
-        be useful for future load operations.
-        """
+        """Load an additional attribute from the real object."""
         raise NotImplementedError(
             _("Cannot load '%s' in the base class") % attrname)
 
@@ -703,9 +700,10 @@ class ObjectListBase(object):
         child_target_version = self.child_versions.get(target_version, '1.0')
         for index, item in enumerate(self.objects):
             self.objects[index].obj_make_compatible(
-                primitives[index]['nova_object.data'],
+                primitives[index]['versioned_object.data'],
                 child_target_version)
-            primitives[index]['nova_object.version'] = child_target_version
+            primitives[index][
+                'versioned_object.version'] = child_target_version
 
     def obj_what_changed(self):
         changes = set(self._changed_fields)
@@ -724,28 +722,8 @@ class VersionedObjectSerializer(messaging.NoOpSerializer):
     values should pass this to its RPCClient and RPCServer objects.
     """
 
-    @property
-    def conductor(self):
-        if not hasattr(self, '_conductor'):
-            from nova import conductor
-            self._conductor = conductor.API()
-        return self._conductor
-
     def _process_object(self, context, objprim):
-        try:
-            objinst = VersionedObject.obj_from_primitive(
-                objprim, context=context)
-        except exception.IncompatibleObjectVersion as e:
-            objver = objprim['nova_object.version']
-            if objver.count('.') == 2:
-                # NOTE(danms): For our purposes, the .z part of the version
-                # should be safe to accept without requiring a backport
-                objprim['nova_object.version'] = \
-                    '.'.join(objver.split('.')[:2])
-                return self._process_object(context, objprim)
-            objinst = self.conductor.object_backport(context, objprim,
-                                                     e.kwargs['supported'])
-        return objinst
+        return VersionedObject.obj_from_primitive(objprim, context=context)
 
     def _process_iterable(self, context, action_fn, values):
         """Process an iterable, taking an action on each value.
@@ -777,7 +755,7 @@ class VersionedObjectSerializer(messaging.NoOpSerializer):
         return entity
 
     def deserialize_entity(self, context, entity):
-        if isinstance(entity, dict) and 'nova_object.name' in entity:
+        if isinstance(entity, dict) and 'versioned_object.name' in entity:
             entity = self._process_object(context, entity)
         elif isinstance(entity, (tuple, list, set, dict)):
             entity = self._process_iterable(context, self.deserialize_entity,

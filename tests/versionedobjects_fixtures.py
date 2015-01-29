@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Fixtures for Nova tests."""
+"""Fixtures for VersionedObjects tests."""
 from __future__ import absolute_import
 
 import gettext

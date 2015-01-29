@@ -52,7 +52,7 @@ class AbstractFieldType(six.with_metaclass(abc.ABCMeta, object)):
         This method should convert the value given into the designated type,
         or throw an exception if this is not possible.
 
-        :param:obj: The NovaObject on which an attribute is being set
+        :param:obj: The VersionedObject on which an attribute is being set
         :param:attr: The name of the attribute being set
         :param:value: The value being set
         :returns: A properly-typed value
@@ -66,7 +66,7 @@ class AbstractFieldType(six.with_metaclass(abc.ABCMeta, object)):
         This method should deserialize a value from the form given by
         to_primitive() to the designated type.
 
-        :param:obj: The NovaObject on which the value is to be set
+        :param:obj: The VersionedObject on which the value is to be set
         :param:attr: The name of the attribute which will hold the value
         :param:value: The serialized form of the value
         :returns: The natural form of the value
@@ -80,7 +80,7 @@ class AbstractFieldType(six.with_metaclass(abc.ABCMeta, object)):
         This method should serialize a value to the form expected by
         from_primitive().
 
-        :param:obj: The NovaObject on which the value is set
+        :param:obj: The VersionedObject on which the value is set
         :param:attr: The name of the attribute holding the value
         :param:value: The natural form of the value
         :returns: The serialized form of the value

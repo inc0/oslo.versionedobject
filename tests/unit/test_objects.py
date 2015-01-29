@@ -334,30 +334,20 @@ class _LocalTest(_BaseTestCase):
         self.assertEqual(self.remote_object_calls, [])
 
 
-@contextlib.contextmanager
-def things_temporarily_local():
-    # Temporarily go non-remote so the conductor handles
-    # this request directly
-    _api = base.VersionedObject.indirection_api
-    base.VersionedObject.indirection_api = None
-    yield
-    base.VersionedObject.indirection_api = _api
-
-
 class _TestObject(object):
 
     def test_hydration_type_error(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'nova',
-                     'nova_object.version': '1.5',
-                     'nova_object.data': {'foo': 'a'}}
+        primitive = {'versioned_object.name': 'MyObj',
+                     'versioned_object.namespace': 'versionedobjects',
+                     'versioned_object.version': '1.5',
+                     'versioned_object.data': {'foo': 'a'}}
         self.assertRaises(ValueError, MyObj.obj_from_primitive, primitive)
 
     def test_hydration(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'nova',
-                     'nova_object.version': '1.5',
-                     'nova_object.data': {'foo': 1}}
+        primitive = {'versioned_object.name': 'MyObj',
+                     'versioned_object.namespace': 'versionedobjects',
+                     'versioned_object.version': '1.5',
+                     'versioned_object.data': {'foo': 1}}
         real_method = MyObj._obj_from_primitive
 
         def _obj_from_primitive(*args):
@@ -370,27 +360,27 @@ class _TestObject(object):
         self.assertEqual(obj.foo, 1)
 
     def test_hydration_version_different(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'nova',
-                     'nova_object.version': '1.2',
-                     'nova_object.data': {'foo': 1}}
+        primitive = {'versioned_object.name': 'MyObj',
+                     'versioned_object.namespace': 'versionedobjects',
+                     'versioned_object.version': '1.2',
+                     'versioned_object.data': {'foo': 1}}
         obj = MyObj.obj_from_primitive(primitive)
         self.assertEqual(obj.foo, 1)
         self.assertEqual('1.2', obj.VERSION)
 
     def test_hydration_bad_ns(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'foo',
-                     'nova_object.version': '1.5',
-                     'nova_object.data': {'foo': 1}}
+        primitive = {'versioned_object.name': 'MyObj',
+                     'versioned_object.namespace': 'foo',
+                     'versioned_object.version': '1.5',
+                     'versioned_object.data': {'foo': 1}}
         self.assertRaises(exception.UnsupportedObjectError,
                           MyObj.obj_from_primitive, primitive)
 
     def test_hydration_additional_unexpected_stuff(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'nova',
-                     'nova_object.version': '1.5.1',
-                     'nova_object.data': {
+        primitive = {'versioned_object.name': 'MyObj',
+                     'versioned_object.namespace': 'versionedobjects',
+                     'versioned_object.version': '1.5.1',
+                     'versioned_object.data': {
                          'foo': 1,
                          'unexpected_thing': 'foobar'}}
         obj = MyObj.obj_from_primitive(primitive)
@@ -404,10 +394,10 @@ class _TestObject(object):
         self.assertEqual('1.5.1', obj.VERSION)
 
     def test_dehydration(self):
-        expected = {'nova_object.name': 'MyObj',
-                    'nova_object.namespace': 'nova',
-                    'nova_object.version': '1.6',
-                    'nova_object.data': {'foo': 1}}
+        expected = {'versioned_object.name': 'MyObj',
+                    'versioned_object.namespace': 'versionedobjects',
+                    'versioned_object.version': '1.6',
+                    'versioned_object.data': {'foo': 1}}
         obj = MyObj(foo=1)
         obj.obj_reset_changes()
         self.assertEqual(obj.obj_to_primitive(), expected)
@@ -446,11 +436,11 @@ class _TestObject(object):
         obj = MyObj(foo=1)
         obj.obj_reset_changes()
         self.assertEqual(obj.bar, 'loaded!')
-        expected = {'nova_object.name': 'MyObj',
-                    'nova_object.namespace': 'nova',
-                    'nova_object.version': '1.6',
-                    'nova_object.changes': ['bar'],
-                    'nova_object.data': {'foo': 1,
+        expected = {'versioned_object.name': 'MyObj',
+                    'versioned_object.namespace': 'versionedobjects',
+                    'versioned_object.version': '1.6',
+                    'versioned_object.changes': ['bar'],
+                    'versioned_object.data': {'foo': 1,
                                          'bar': 'loaded!'}}
         self.assertEqual(obj.obj_to_primitive(), expected)
 
@@ -458,7 +448,7 @@ class _TestObject(object):
         obj = MyObj(foo=123)
         self.assertEqual(obj.obj_what_changed(), set(['foo']))
         primitive = obj.obj_to_primitive()
-        self.assertIn('nova_object.changes', primitive)
+        self.assertIn('versioned_object.changes', primitive)
         obj2 = MyObj.obj_from_primitive(primitive)
         self.assertEqual(obj2.obj_what_changed(), set(['foo']))
         obj2.obj_reset_changes()
@@ -576,12 +566,12 @@ class _TestObject(object):
         dt = datetime.datetime(1955, 11, 5)
         obj = MyObj(created_at=dt, updated_at=dt, deleted_at=None,
                     deleted=False)
-        expected = {'nova_object.name': 'MyObj',
-                    'nova_object.namespace': 'nova',
-                    'nova_object.version': '1.6',
-                    'nova_object.changes':
+        expected = {'versioned_object.name': 'MyObj',
+                    'versioned_object.namespace': 'versionedobjects',
+                    'versioned_object.version': '1.6',
+                    'versioned_object.changes':
                         ['deleted', 'created_at', 'deleted_at', 'updated_at'],
-                    'nova_object.data':
+                    'versioned_object.data':
                         {'created_at': timeutils.isotime(dt),
                          'updated_at': timeutils.isotime(dt),
                          'deleted_at': None,
@@ -681,7 +671,7 @@ class _TestObject(object):
         obj.obj_relationships = {
             'rel_object': [('1.5', '1.1'), ('1.7', '1.2')],
         }
-        primitive = obj.obj_to_primitive()['nova_object.data']
+        primitive = obj.obj_to_primitive()['versioned_object.data']
         with mock.patch.object(subobj, 'obj_make_compatible') as mock_compat:
             obj._obj_make_obj_compatible(copy.copy(primitive), '1.8',
                                          'rel_object')
@@ -691,25 +681,25 @@ class _TestObject(object):
             obj._obj_make_obj_compatible(copy.copy(primitive),
                                          '1.7', 'rel_object')
             mock_compat.assert_called_once_with(
-                primitive['rel_object']['nova_object.data'], '1.2')
+                primitive['rel_object']['versioned_object.data'], '1.2')
             self.assertEqual('1.2',
-                             primitive['rel_object']['nova_object.version'])
+                             primitive['rel_object']['versioned_object.version'])
 
         with mock.patch.object(subobj, 'obj_make_compatible') as mock_compat:
             obj._obj_make_obj_compatible(copy.copy(primitive),
                                          '1.6', 'rel_object')
             mock_compat.assert_called_once_with(
-                primitive['rel_object']['nova_object.data'], '1.1')
+                primitive['rel_object']['versioned_object.data'], '1.1')
             self.assertEqual('1.1',
-                             primitive['rel_object']['nova_object.version'])
+                             primitive['rel_object']['versioned_object.version'])
 
         with mock.patch.object(subobj, 'obj_make_compatible') as mock_compat:
             obj._obj_make_obj_compatible(copy.copy(primitive), '1.5',
                                          'rel_object')
             mock_compat.assert_called_once_with(
-                primitive['rel_object']['nova_object.data'], '1.1')
+                primitive['rel_object']['versioned_object.data'], '1.1')
             self.assertEqual('1.1',
-                             primitive['rel_object']['nova_object.version'])
+                             primitive['rel_object']['versioned_object.version'])
 
         with mock.patch.object(subobj, 'obj_make_compatible') as mock_compat:
             _prim = copy.copy(primitive)
@@ -891,62 +881,11 @@ class TestObjectSerializer(_BaseTestCase):
         for thing in (1, 'foo', [1, 2], {'foo': 'bar'}):
             self.assertEqual(thing, ser.deserialize_entity(None, thing))
 
-    def _test_deserialize_entity_newer(self, obj_version, backported_to,
-                                       my_version='1.6'):
-        ser = base.VersionedObjectSerializer()
-        ser._conductor = mock.Mock()
-        ser._conductor.object_backport.return_value = 'backported'
-
-        class MyTestObj(MyObj):
-            VERSION = my_version
-
-        obj = MyTestObj()
-        obj.VERSION = obj_version
-        primitive = obj.obj_to_primitive()
-        result = ser.deserialize_entity(self.context, primitive)
-        if backported_to is None:
-            self.assertFalse(ser._conductor.object_backport.called)
-        else:
-            self.assertEqual('backported', result)
-            ser._conductor.object_backport.assert_called_with(self.context,
-                                                              primitive,
-                                                              backported_to)
-
-    def test_deserialize_entity_newer_version_backports(self):
-        self._test_deserialize_entity_newer('1.25', '1.6')
-
-    def test_deserialize_entity_newer_revision_does_not_backport_zero(self):
-        self._test_deserialize_entity_newer('1.6.0', None)
-
-    def test_deserialize_entity_newer_revision_does_not_backport(self):
-        self._test_deserialize_entity_newer('1.6.1', None)
-
-    def test_deserialize_entity_newer_version_passes_revision(self):
-        self._test_deserialize_entity_newer('1.7', '1.6.1', '1.6.1')
-
-    def test_deserialize_dot_z_with_extra_stuff(self):
-        primitive = {'nova_object.name': 'MyObj',
-                     'nova_object.namespace': 'nova',
-                     'nova_object.version': '1.6.1',
-                     'nova_object.data': {
-                         'foo': 1,
-                         'unexpected_thing': 'foobar'}}
-        ser = base.VersionedObjectSerializer()
-        obj = ser.deserialize_entity(self.context, primitive)
-        self.assertEqual(1, obj.foo)
-        self.assertFalse(hasattr(obj, 'unexpected_thing'))
-        # NOTE(danms): The serializer is where the logic lives that
-        # avoids backports for cases where only a .z difference in
-        # the received object version is detected. As a result, we
-        # end up with a version of what we expected, effectively the
-        # .0 of the object.
-        self.assertEqual('1.6', obj.VERSION)
-
     def test_object_serialization(self):
         ser = base.VersionedObjectSerializer()
         obj = MyObj()
         primitive = ser.serialize_entity(self.context, obj)
-        self.assertIn('nova_object.name', primitive)
+        self.assertIn('versioned_object.name', primitive)
         obj2 = ser.deserialize_entity(self.context, primitive)
         self.assertIsInstance(obj2, MyObj)
         self.assertEqual(self.context, obj2._context)
