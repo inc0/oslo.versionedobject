@@ -1,5 +1,5 @@
 =============================================
-Contributing to: oslo-incubator
+Contributing to: oslo.versionedobjects
 =============================================
 
 If you would like to contribute to the development of OpenStack,
@@ -17,4 +17,4 @@ Pull requests submitted through GitHub will be ignored.
 
 Bugs should be filed on Launchpad, not GitHub:
 
-   https://bugs.launchpad.net/oslo-incubator
+   https://bugs.launchpad.net/oslo.versionedobjects
